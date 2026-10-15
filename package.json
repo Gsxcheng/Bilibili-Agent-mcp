@@ -1,0 +1,51 @@
+{
+  "name": "bilibili-agent-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets AI agents use Bilibili: video info, downloads, danmaku, subtitles, comments, search, rankings (features ported from Bilibili-Evolved)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/postbuild.mjs",
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test test/unit.test.mjs test/mcp.test.mjs",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "bilibili",
+    "ai-agent",
+    "model-context-protocol",
+    "bilibili-evolved",
+    "danmaku"
+  ],
+  "author": "Gsxcheng",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "protobufjs": "^8.8.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^5.9.3"
+  },
+  "type": "module",
+  "bin": {
+    "bilibili-agent-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gsxcheng/Bilibili-Agent-mcp.git"
+  },
+  "homepage": "https://github.com/Gsxcheng/Bilibili-Agent-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Gsxcheng/Bilibili-Agent-mcp/issues"
+  }
+}

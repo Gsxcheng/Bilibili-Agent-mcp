@@ -63,12 +63,24 @@ const PAGE = z.number().int().min(1).optional().describe('分P序号（从1开�
 
 const READ = { readOnlyHint: true, openWorldHint: true } as const
 
-export const registerTools = (server: McpServer, client: BiliClient) => {
+export interface ToolContext {
+  /** In HTTP mode: turns a local file path into a download link for the remote user. */
+  fileUrl?: (path: string) => string | undefined
+}
+
+export const registerTools = (server: McpServer, client: BiliClient, context: ToolContext = {}) => {
   const saveText = async (name: string, text: string) => {
     await mkdir(client.config.downloadDir, { recursive: true })
     const path = join(client.config.downloadDir, name)
     await writeFile(path, text)
     return path
+  }
+  const linkOf = (path: string) => context.fileUrl?.(path)
+  const saved = (path: string) => ({ savedTo: path, downloadUrl: linkOf(path) })
+  const jobView = (job: Parameters<typeof publicJob>[0]) => {
+    const view = publicJob(job)
+    if (!context.fileUrl || job.status !== 'done') return view
+    return { ...view, downloads: job.files.map(f => ({ file: f.split(/[\\/]/).pop(), url: linkOf(f) })) }
   }
 
   // ---------------------------------------------------------------- resolve
@@ -179,7 +191,7 @@ export const registerTools = (server: McpServer, client: BiliClient) => {
           .optional()
           .describe('附带下载：封面、ASS 弹幕、XML 弹幕、SRT 字幕、ffmetadata 元数据'),
         merge: z.boolean().optional().describe('是否用 ffmpeg 合并音视频，默认 true'),
-        wait_seconds: z.number().int().min(0).max(110).default(45).describe('最多等待多少秒再返回；0 表示立即返回任务 ID'),
+        wait_seconds: z.number().int().min(0).max(90).default(45).describe('最多等待多少秒再返回（上限 90，远程模式下避免网关超时）；0 表示立即返回任务 ID'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
@@ -192,11 +204,14 @@ export const registerTools = (server: McpServer, client: BiliClient) => {
       }
       const deadline = Date.now() + wait_seconds * 1000
       for (const job of started) await waitJob(job, Math.max(0, deadline - Date.now()))
-      const result = started.map(publicJob)
+      const result = started.map(jobView)
       const pending = result.filter(j => j.status !== 'done' && j.status !== 'error')
       return {
         downloadDir: client.config.downloadDir,
         jobs: result,
+        remoteNote: context.fileUrl
+          ? '文件保存在运行本服务的电脑上；任务完成后 jobs[].downloads 里有可直接下载的链接'
+          : undefined,
         hint: pending.length ? `仍有 ${pending.length} 个任务在后台进行，请稍后用 bili_download_status 查询` : undefined,
       }
     }),
@@ -209,16 +224,16 @@ export const registerTools = (server: McpServer, client: BiliClient) => {
       description: '查询下载任务进度与结果文件路径。不传 job_id 时列出本次会话的全部任务。',
       inputSchema: {
         job_id: z.string().optional(),
-        wait_seconds: z.number().int().min(0).max(110).default(0).describe('若任务未完成，最多等待多少秒'),
+        wait_seconds: z.number().int().min(0).max(90).default(0).describe('若任务未完成，最多等待多少秒（上限 90）'),
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     run(async ({ job_id, wait_seconds }) => {
-      if (!job_id) return listJobs().map(publicJob)
+      if (!job_id) return listJobs().map(jobView)
       const job = getJob(job_id)
       if (!job) throw new BiliError(`找不到任务 ${job_id}（服务重启后任务列表会清空）`)
       await waitJob(job, wait_seconds * 1000)
-      return publicJob(job)
+      return jobView(job)
     }),
   )
 
@@ -254,7 +269,7 @@ export const registerTools = (server: McpServer, client: BiliClient) => {
             ? toXml(video.cid, list)
             : JSON.stringify(list, null, 1)
       const path = await saveText(`${name}.danmaku.${mode}`, text)
-      return { ...head, count: list.length, savedTo: path }
+      return { ...head, count: list.length, ...saved(path) }
     }),
   )
 
@@ -301,7 +316,7 @@ export const registerTools = (server: McpServer, client: BiliClient) => {
       const head = { title: video.title, pageTitle: video.pageTitle, bvid: video.bvid, language: track.name, lang: track.lang, ai: track.ai, available, lines: items.length }
       if (save) {
         const path = await saveText(`${baseName(video)}.${track.lang}.${format === 'text' ? 'txt' : format}`, text)
-        return { ...head, savedTo: path }
+        return { ...head, ...saved(path) }
       }
       return `${JSON.stringify(head)}\n\n${text}`
     }),

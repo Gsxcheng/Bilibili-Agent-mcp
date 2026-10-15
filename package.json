@@ -6,8 +6,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/postbuild.mjs",
     "start": "node dist/index.js",
-    "test": "npm run build && node --test test/unit.test.mjs test/mcp.test.mjs",
-    "prepare": "npm run build"
+    "test": "npm run build && node --test test/unit.test.mjs test/mcp.test.mjs test/http.test.mjs",
+    "prepare": "npm run build",
+    "start:http": "node dist/index.js --http"
   },
   "keywords": [
     "mcp",
@@ -35,7 +36,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    ".env.example",
+    "docs"
   ],
   "engines": {
     "node": ">=18.17"
